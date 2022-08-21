@@ -2,10 +2,24 @@
 import os
 import dataclasses
 import enum
-import string
-import subprocess
-import re
 
+from qemu_devices import QEMUDevice, QEMUStorageDevice
+class _QEMUDriveInterface(enum.Enum):
+    IDE = ("ide")
+    SCSI = ("scsi")
+    SD = ("sd")
+    MTD = ("mtd")
+    FLOPPY = ("floppy")
+    PFLASH = ("pflash")
+    VIRTIO = ("virtio")
+    NONE = ("none")
+
+    def __init__(self, name: str):
+        self.__name: str = name
+
+    def to_qemu_string(self) -> str:
+        return self.__name
+        
 @dataclasses.dataclass
 class _QEMUDrive:
     file_path: str
@@ -14,7 +28,6 @@ class _QEMUDrive:
 @dataclasses.dataclass
 class _QEMUCDRom(_QEMUDrive):
     pass
-
 @dataclasses.dataclass
 class _QEMUHardDrive(_QEMUDrive):
     pass
@@ -138,22 +151,29 @@ class QEMUOptions:
                 f'file="{drive.file_path}"',
                 f'id={drive.id}'
             ]
+
             if type(drive) is _QEMUCDRom: 
-                drive_parameters.append(f'media=cdrom')
+                drive_parameters.append(f'media=cdrom,if=none')
             elif type(drive) is _QEMUHardDrive: 
-                drive_parameters.append(f'media=disk')
+                drive_parameters.append(f'media=disk,if=none')
             else:
                 raise Exception(f"Not recognized drive type: {type(drive)}")
 
-            command.append(f"-drive {','.join(drive_parameters)}")
+            device_parameters = []
+            if type(drive) is _QEMUCDRom: 
+                device_parameters.append(f'{QEMUStorageDevice.IDE_CD.to_qemu_string()},drive={drive.id}')
+            elif type(drive) is _QEMUHardDrive: 
+                device_parameters.append(f'{QEMUStorageDevice.IDE_HD.to_qemu_string()},drive={drive.id}')
 
-            # boot_order = self.__find_bootorder_for_drive(drive.id)
-            # if boot_order != None:
-            #     # if type(drive) is _QEMUCDRom: 
-            #     #     drive_parameters.append(f'-device ide-hd,drive=disk1,bootindex=4')
-            #     # el
-            #     if type(drive) is _QEMUHardDrive: 
-            #         command.append(f'-device ide-hd,drive={drive.id},bootindex={boot_order.index}')
+
+            boot_order = self._find_bootorder_for_drive(drive.id)
+            if boot_order != None:
+                device_parameters.append(f'bootindex={boot_order.index}')
+
+            command.append(f"-drive {','.join(drive_parameters)}")
+            command.append(f"-device {','.join(device_parameters)}")
+
+            
 
         if self.__processor != None:
             command.append(f'-cpu {self.__processor}')
