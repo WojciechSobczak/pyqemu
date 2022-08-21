@@ -173,7 +173,8 @@ ${_DEVICE_ENUM_FIELDS_TEMPLATE_KEY}
 
     def generate_devices_file(self, output_file_path: str | None = None):
         if output_file_path == None:
-            output_file_path = "./qemu_devices.py"
+            script_dir = os.path.realpath(os.path.dirname(__file__))
+            output_file_path = f"{script_dir}/qemu_devices.py"
 
         devices_sections = self._extract_devices()
         bus_file_text = self._generate_bus_file_text(devices_sections)
